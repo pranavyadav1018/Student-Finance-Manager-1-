@@ -1,0 +1,79 @@
+:root{
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --alert: #f59e0b;
+}
+[data-theme="dark"]{
+  --bg: #0b1220;
+  --card: #0f1724;
+  --text: #e6eef8;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --alert: #f6ad55;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+.app-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 24px;
+  border-bottom:1px solid rgba(0,0,0,0.06);
+  background:linear-gradient(90deg, rgba(255,255,255,0.6), transparent);
+}
+.app-header h1{margin:0;font-size:18px}
+.controls{display:flex;gap:8px;align-items:center}
+.alert-badge{
+  background:var(--alert);
+  color:#fff;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:600;
+  margin-left:6px;
+  font-size:13px;
+}
+.container{
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap:18px;
+  padding:20px;
+  max-width:1200px;
+  margin:18px auto;
+}
+.left-col .card, .right-col .card{
+  background:var(--card);
+  padding:14px;
+  border-radius:10px;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+}
+.card h2{margin:0 0 8px 0;font-size:16px}
+.card label{display:block;margin-bottom:8px;font-size:13px;color:var(--muted)}
+.card input[type="text"], .card input[type="date"], .card input[type="number"]{
+  width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);
+  background:transparent;color:var(--text);margin-top:6px;
+}
+.card button{background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+.row{display:flex;gap:8px;align-items:center}
+.list{margin-top:8px}
+.smallpre{max-height:160px;overflow:auto;background:rgba(0,0,0,0.02);padding:8px;border-radius:6px}
+.tx{display:flex;justify-content:space-between;padding:8px;border-bottom:1px dashed rgba(0,0,0,0.04)}
+.tx-left{max-width:70%}
+.tx-merchant{font-weight:600}
+.tx-note{font-size:13px;color:var(--muted)}
+.tx-right{min-width:100px;text-align:right}
+.alert{padding:8px;border-left:4px solid var(--alert);background:rgba(250,240,220,0.5);border-radius:6px;margin-bottom:8px}
+.rowitem{display:flex;justify-content:space-between;padding:6px 0}
+.footer{padding:12px 20px;text-align:center;color:var(--muted);font-size:13px}
+@media (max-width:980px){
+  .container{grid-template-columns:1fr; padding:12px}
+}

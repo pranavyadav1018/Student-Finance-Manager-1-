@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pocket Predictive Pilot — Demo</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js CDN for charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Pocket Predictive Pilot</h1>
+    <div class="controls">
+      <button id="themeToggle">Toggle Theme</button>
+      <span id="alertBadge" class="alert-badge">0</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="left-col">
+      <div class="card">
+        <h2>Add expense</h2>
+        <form id="expenseForm">
+          <label>Date<input type="date" name="date" required /></label>
+          <label>Amount (₹)<input type="number" name="amount" step="0.01" required /></label>
+          <label>Merchant<input type="text" name="merchant" /></label>
+          <label>Note<input type="text" name="note" /></label>
+          <div class="row">
+            <button type="submit">Add</button>
+            <input id="csvImport" type="file" accept=".csv" />
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Budgets</h2>
+        <form id="budgetForm">
+          <label>Category<input type="text" name="category" placeholder="Food" required /></label>
+          <label>Monthly Budget (₹)<input name="amount" type="number" step="0.01" required /></label>
+          <button type="submit">Set Budget</button>
+        </form>
+        <div id="budgetsList" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Keyword model (preview)</h2>
+        <pre id="keywordsPre" class="smallpre">loading...</pre>
+      </div>
+    </section>
+
+    <section class="right-col">
+      <div class="card">
+        <h2>Top categories</h2>
+        <canvas id="catChart" height="120"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Spending over time</h2>
+        <canvas id="trendChart" height="160"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Predictions & Alerts</h2>
+        <div id="alertsArea"></div>
+      </div>
+
+      <div class="card">
+        <h2>Recent transactions</h2>
+        <div id="txList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>Demo — do not use with real bank credentials. Backend is a local Flask app.</small>
+  </footer>
+
+<script>
+const API_BASE = (location.hostname === 'localhost' ? 'http://localhost:5000' : '') || '/';
+
+async function api(path, opts = {}) {
+  const res = await fetch(API_BASE + path, opts);
+  if(!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || res.status);
+  }
+  return res.json();
+}
+
+/* UI state & charts */
+let catChart = null;
+let trendChart = null;
+
+function formatCurrency(v){ return Number(v||0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+async function refreshAll(){
+  const data = await api('expenses/summary');
+  renderCategoryChart(data.totalsByCategory);
+  renderTrendChart(data.monthSeries);
+  renderTransactions(data.recent);
+  renderBudgets(data.budgets);
+  renderKeywords(data.keywords);
+  renderAlerts(data.alerts);
+  document.getElementById('alertBadge').textContent = data.alerts.length || 0;
+}
+
+function renderKeywords(kws){
+  document.getElementById('keywordsPre').textContent = JSON.stringify(kws, null, 2);
+}
+
+function renderBudgets(budgets){
+  const out = document.getElementById('budgetsList');
+  out.innerHTML = '';
+  for(const k of Object.keys(budgets||{})){
+    const el = document.createElement('div');
+    el.className = 'rowitem';
+    el.innerHTML = `<strong>${k}</strong> <span>₹ ${formatCurrency(budgets[k])}</span>`;
+    out.appendChild(el);
+  }
+}
+
+function renderTransactions(list){
+  const out = document.getElementById('txList');
+  out.innerHTML = '';
+  list.forEach(tx => {
+    const el = document.createElement('div');
+    el.className = 'tx';
+    el.innerHTML = `<div class="tx-left"><div class="tx-merchant">${tx.merchant||'—'}</div><div class="tx-note">${tx.note||''}</div></div><div class="tx-right"><div>₹ ${formatCurrency(tx.amount)}</div><div class="tx-cat">${tx.category||'—'}</div></div>`;
+    out.appendChild(el);
+  });
+}
+
+function renderCategoryChart(catArr){
+  const labels = catArr.map(c=>c.category);
+  const data = catArr.map(c=>c.value);
+  const ctx = document.getElementById('catChart').getContext('2d');
+  if(catChart) catChart.destroy();
+  catChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Spent (₹)', data }] },
+    options: {
+      onClick: async (evt, elems) => {
+        if(!elems.length) return;
+        const idx = elems[0].index;
+        const cat = labels[idx];
+        // fetch drilldown
+        const resp = await api(`expenses?category=${encodeURIComponent(cat)}&limit=50`);
+        renderTransactions(resp);
+      },
+      plugins: { tooltip: { mode: 'index' } }
+    }
+  });
+}
+
+function renderTrendChart(monthSeries){
+  const labels = monthSeries.map(m=>m.month);
+  const data = monthSeries.map(m=>m.total);
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Total spent (₹)', data, fill: true }] },
+    options: { interaction: { mode: 'index', intersect: false } }
+  });
+}
+
+function renderAlerts(alerts){
+  const out = document.getElementById('alertsArea');
+  out.innerHTML = '';
+  if(!alerts.length){ out.textContent = 'No alerts'; return; }
+  alerts.forEach(a=>{
+    const el = document.createElement('div');
+    el.className = 'alert';
+    el.innerHTML = `<div><strong>${a.category}</strong> — Predicted ₹ ${formatCurrency(a.predicted)} vs Budget ₹ ${formatCurrency(a.budget)}</div>
+                    <div class="row"><button data-cat="${a.category}" class="adjustBtn">Adjust</button></div>`;
+    out.appendChild(el);
+  });
+  document.querySelectorAll('.adjustBtn').forEach(b=>{
+    b.onclick = async ()=> {
+      const cat = b.dataset.cat;
+      const val = prompt('Set new monthly budget for ' + cat);
+      if(val) {
+        await api('budgets', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({category:cat, amount: Number(val)})});
+        await refreshAll();
+      }
+    };
+  });
+}
+
+/* Forms */
+document.getElementById('expenseForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  await api('expenses', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({
+    date: fd.get('date'),
+    amount: Number(fd.get('amount')),
+    merchant: fd.get('merchant'),
+    note: fd.get('note')
+  })});
+  ev.target.reset();
+  await refreshAll();
+});
+
+document.getElementById('csvImport').addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const form = new FormData();
+  form.append('file', f);
+  await fetch(API_BASE + 'import', { method:'POST', body: form });
+  ev.target.value = '';
+  await refreshAll();
+});
+
+document.getElementById('budgetForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  await api('budgets', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ category: fd.get('category'), amount: Number(fd.get('amount')) })});
+  ev.target.reset();
+  await refreshAll();
+});
+
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('ppp_theme', t);
+});
+
+/* init */
+(async ()=> {
+  const savedTheme = localStorage.getItem('ppp_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  await refreshAll();
+})();
+</script>
+</body>
+</html>
